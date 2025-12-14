@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Secret Santa (Frontend Only)</title>
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- EmailJS (opzionale). Se non configuri EmailJS, puoi usare mailto. -->
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar__inner">
+      <div class="brand">
+        <span class="brand__icon">🎁</span>
+        <div class="brand__text">
+          <h1>Secret Santa</h1>
+          <p>Solo frontend. Perché la vita è già complicata.</p>
+        </div>
+      </div>
+
+      <div class="topbar__actions">
+        <button id="btnResetAll" class="btn btn-ghost" title="Cancella tutto (partecipanti, regole, estrazione)">Reset</button>
+        <button id="btnToggleTheme" class="btn btn-ghost" title="Tema natalizio leggero">🎄</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- Toast / messaggi -->
+    <div id="toast" class="toast" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Stepper -->
+    <nav class="stepper" aria-label="Flusso">
+      <button class="step step--active" data-step="1" id="stepBtn1">1) Inserimento</button>
+      <button class="step" data-step="2" id="stepBtn2">2) Estrazione</button>
+      <button class="step" data-step="3" id="stepBtn3">3) Invio</button>
+    </nav>
+
+    <!-- STEP 1: Partecipanti -->
+    <section class="card" id="step1">
+      <div class="card__header">
+        <h2>Partecipanti</h2>
+        <p>Aggiungi almeno 3 persone. Nome + email. Note facoltative.</p>
+      </div>
+
+      <form id="participantForm" class="grid" autocomplete="off">
+        <div class="field">
+          <label for="pName">Nome</label>
+          <input id="pName" type="text" placeholder="Es. Marco" required />
+        </div>
+
+        <div class="field">
+          <label for="pEmail">Email</label>
+          <input id="pEmail" type="email" placeholder="Es. marco@email.com" required />
+        </div>
+
+        <div class="field field--full">
+          <label for="pNotes">Note / preferenze (opzionale)</label>
+          <input id="pNotes" type="text" placeholder="Es. Ama libri, no cioccolato, budget 15€..." />
+        </div>
+
+        <div class="actions field--full">
+          <button class="btn btn-primary" type="submit" id="btnAdd">Aggiungi</button>
+          <button class="btn btn-ghost" type="button" id="btnClearForm">Pulisci</button>
+        </div>
+      </form>
+
+      <div class="card__divider"></div>
+
+      <div class="row row--space">
+        <h3>Lista</h3>
+        <div class="row">
+          <span class="pill" id="countPill">0 partecipanti</span>
+          <label class="toggle">
+            <input type="checkbox" id="lockAfterDraw" />
+            <span>Blocca modifiche dopo estrazione</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="tableWrap">
+        <table class="table" aria-label="Partecipanti">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Email</th>
+              <th>Note</th>
+              <th class="col-actions">Azioni</th>
+            </tr>
+          </thead>
+          <tbody id="participantsTbody"></tbody>
+        </table>
+      </div>
+
+      <div class="card__divider"></div>
+
+      <div class="row row--space">
+        <div>
+          <h3>Esclusioni (A ≠ B)</h3>
+          <p class="muted">Evita accoppiamenti specifici (es. coppie, colleghi, nemici giurati).</p>
+        </div>
+        <button class="btn btn-ghost" id="btnClearExclusions" type="button">Svuota esclusioni</button>
+      </div>
+
+      <div class="grid exclusions">
+        <div class="field">
+          <label for="exFrom">Da (A)</label>
+          <select id="exFrom"></select>
+        </div>
+        <div class="field">
+          <label for="exTo">A (B)</label>
+          <select id="exTo"></select>
+        </div>
+        <div class="field field--full actions">
+          <button class="btn btn-secondary" type="button" id="btnAddExclusion">Aggiungi esclusione</button>
+        </div>
+      </div>
+
+      <ul id="exclusionsList" class="list"></ul>
+
+      <div class="card__divider"></div>
+
+      <div class="row row--space">
+        <button class="btn btn-primary" id="goToDraw" type="button">Vai a Estrazione →</button>
+        <button class="btn btn-ghost" id="btnDemoData" type="button" title="Riempie con dati finti">Demo data</button>
+      </div>
+    </section>
+
+    <!-- STEP 2: Estrazione -->
+    <section class="card hidden" id="step2">
+      <div class="card__header">
+        <h2>Estrazione</h2>
+        <p>Shuffle casuale con vincoli. Nessuno pesca se stesso. Tutti pescano una persona sola.</p>
+      </div>
+
+      <div class="grid">
+        <div class="field field--full">
+          <label for="seedMode">
+            Modalità estrazione
+          </label>
+          <select id="seedMode">
+            <option value="secure">Casuale (crypto se disponibile)</option>
+            <option value="fast">Casuale veloce (Math.random)</option>
+          </select>
+          <p class="hint">Non serve un RNG militare per scambiarsi calzini, ma eccoci qui.</p>
+        </div>
+
+        <div class="field field--full">
+          <label for="customEmailText">Template testo email</label>
+          <textarea id="customEmailText" rows="4" placeholder="Ciao {{nome}}, il tuo Secret Santa è {{assegnato}}. Buone feste!"></textarea>
+          <p class="hint">Placeholder: <code>{{nome}}</code>, <code>{{assegnato}}</code>.</p>
+        </div>
+
+        <div class="field">
+          <label class="toggle">
+            <input type="checkbox" id="demoMode" />
+            <span>Modalità demo (non invia email)</span>
+          </label>
+        </div>
+
+        <div class="field">
+          <label class="toggle">
+            <input type="checkbox" id="freezeParticipants" />
+            <span>Blocca modifiche partecipanti dopo estrazione</span>
+          </label>
+        </div>
+
+        <div class="actions field--full">
+          <button class="btn btn-primary" id="btnDraw" type="button">Estrai</button>
+          <button class="btn btn-ghost" id="btnReDraw" type="button">Riesegui</button>
+          <button class="btn btn-ghost" id="btnClearDraw" type="button">Cancella estrazione</button>
+        </div>
+      </div>
+
+      <div class="card__divider"></div>
+
+      <div class="row row--space">
+        <h3>Risultati (solo admin)</h3>
+        <div class="row">
+          <button class="btn btn-ghost" id="btnExportJson" type="button">Esporta JSON</button>
+          <button class="btn btn-primary" id="goToSend" type="button">Vai a Invio →</button>
+        </div>
+      </div>
+
+      <div class="tableWrap">
+        <table class="table" aria-label="Risultati estrazione">
+          <thead>
+            <tr>
+              <th>Partecipante</th>
+              <th>Assegnato</th>
+              <th>Note (del partecipante)</th>
+            </tr>
+          </thead>
+          <tbody id="drawTbody"></tbody>
+        </table>
+      </div>
+
+      <div class="warning" id="drawWarnings"></div>
+    </section>
+
+    <!-- STEP 3: Invio -->
+    <section class="card hidden" id="step3">
+      <div class="card__header">
+        <h2>Invio email</h2>
+        <p>Ogni persona riceve solo il nome del proprio assegnato. Non l’elenco. Non la tua ansia.</p>
+      </div>
+
+      <div class="grid">
+        <div class="field field--full">
+          <label for="sendMethod">Metodo invio</label>
+          <select id="sendMethod">
+            <option value="emailjs">EmailJS (client-side)</option>
+            <option value="mailto">mailto: (apre client email)</option>
+          </select>
+          <p class="hint">EmailJS richiede configurazione. Mailto dipende dal client email dell’utente.</p>
+        </div>
+
+        <div class="field field--full">
+          <label class="toggle">
+            <input type="checkbox" id="confirmBeforeSend" checked />
+            <span>Richiedi conferma prima dell’invio</span>
+          </label>
+        </div>
+
+        <div class="field field--full">
+          <label for="emailSubject">Oggetto email</label>
+          <input id="emailSubject" type="text" placeholder="🎅 Il tuo Secret Santa!" />
+        </div>
+
+        <div class="actions field--full">
+          <button class="btn btn-primary" id="btnSendAll" type="button">Invia a tutti</button>
+          <button class="btn btn-ghost" id="btnPreviewAll" type="button">Anteprima</button>
+        </div>
+      </div>
+
+      <div class="card__divider"></div>
+
+      <h3>Stato invii</h3>
+      <ul id="sendStatusList" class="list"></ul>
+
+      <div class="card__divider"></div>
+
+      <div class="row row--space">
+        <button class="btn btn-ghost" id="backToDraw" type="button">← Torna a Estrazione</button>
+      </div>
+    </section>
+
+    <!-- Modale conferma -->
+    <div class="modal hidden" id="modal">
+      <div class="modal__backdrop" data-close="true"></div>
+      <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <h3 id="modalTitle">Conferma invio</h3>
+        <p id="modalText" class="muted"></p>
+        <div class="modal__actions">
+          <button class="btn btn-ghost" id="modalCancel">Annulla</button>
+          <button class="btn btn-primary" id="modalOk">Conferma</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="wrap footer">
+    <small class="muted">
+      Dati salvati in LocalStorage del tuo browser. Se cancelli i dati del sito, sparisce tutto. Come certi propositi.
+    </small>
+  </footer>
+
+  <canvas id="snow" class="snow hidden" aria-hidden="true"></canvas>
+
+  <script src="script.js"></script>
+</body>
+</html>
