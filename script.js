@@ -525,8 +525,10 @@ async function sendAll() {
     if (items[i]) items[i].querySelector(".tag").textContent = "Invio...";
 
     try {
+      // The EmailJS template's "To Email" field uses variable {{email}} in this project,
+      // so send `email: ...` here to match. Do NOT include other participants' data.
       await sendEmailJS({
-        to_email: giver.email,
+        email: giver.email,
         to_name: giver.name,
         assigned_name: assignedName,
         subject,
@@ -555,8 +557,8 @@ function buildMailto(to, subject, body) {
    - è ok per un Secret Santa, non per gestire un hedge fund
 */
 const EMAILJS_CONFIG = {
-  publicKey: "",   // es: "pUBliC_xxx"
-  serviceId: "",   // es: "service_abcd"
+  publicKey: "_oYxMjGpPeXYAcvvm",   // es: "pUBliC_xxx"
+  serviceId: "secret_santa_tori",   // es: "service_abcd"
   templateId: ""   // es: "template_xyz"
 };
 
@@ -564,7 +566,9 @@ function initEmailJSIfConfigured() {
   if (!window.emailjs) return false;
   const { publicKey, serviceId, templateId } = EMAILJS_CONFIG;
   if (!publicKey || !serviceId || !templateId) return false;
-  emailjs.init({ publicKey });
+  // EmailJS API expects the public key string (not an object)
+  // correct call: emailjs.init(publicKey)
+  emailjs.init(publicKey);
   return true;
 }
 
