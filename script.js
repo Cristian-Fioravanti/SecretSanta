@@ -439,20 +439,27 @@ function renderDrawTable() {
     const tr = document.createElement("tr");
     tr.innerHTML = `<td colspan="3" class="muted">Nessuna estrazione ancora. Premi “Estrai”.</td>`;
     tbody.appendChild(tr);
+    // disabilita export perché non c'è nulla da esportare
+    const btnExport = $("#btnExportJson");
+    if (btnExport) btnExport.disabled = true;
     return;
   }
-
+  // Se c'è un'estrazione già salvata, NON mostrare pubblicamente la mappatura
+  // così l'admin non vede chi dà a chi. Mostriamo invece una riga con
+  // l'informazione nascosta per ciascun partecipante.
   for (const giver of state.participants) {
-    const receiverId = state.draw[giver.id];
-    const receiver = state.participants.find(p => p.id === receiverId);
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><strong>${escapeHtml(giver.name)}</strong><div class="muted">${escapeHtml(giver.email)}</div></td>
-      <td><strong>${escapeHtml(receiver?.name || "???")}</strong></td>
+      <td><strong class="muted">(assegnamento nascosto)</strong></td>
       <td>${escapeHtml(giver.notes || "")}</td>
     `;
     tbody.appendChild(tr);
   }
+
+  // disabilita export per evitare di esportare la mappatura dal browser
+  const btnExport = $("#btnExportJson");
+  if (btnExport) btnExport.disabled = true;
 
   // warning se partecipanti cambiati dopo draw (edge)
   const ids = new Set(state.participants.map(p => p.id));
