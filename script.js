@@ -20,6 +20,7 @@ const state = {
     demoMode: false,
     themeXmas: false,
     seedMode: "secure",
+    emailDebug: false,
   }
 };
 
@@ -505,10 +506,15 @@ async function sendAll() {
     return;
   }
 
-  // EmailJS
+  // EmailJS: ensure SDK present (try dynamic load) and config initialized
+  const sdkLoaded = await ensureEmailJSSDKLoaded();
+  if (!sdkLoaded) {
+    toast("EmailJS SDK non caricato. Includi lo script SDK o controlla la connessione.");
+    return;
+  }
   const emailjsOk = initEmailJSIfConfigured();
   if (!emailjsOk) {
-    toast("EmailJS non configurato. Usa mailto o configura EmailJS (vedi istruzioni sotto).");
+    toast("EmailJS non configurato (publicKey/serviceId/templateId mancanti). Controlla EMAILJS_CONFIG.");
     return;
   }
 
@@ -527,13 +533,15 @@ async function sendAll() {
     try {
       // The EmailJS template's "To Email" field uses variable {{email}} in this project,
       // so send `email: ...` here to match. Do NOT include other participants' data.
-      await sendEmailJS({
+      const payload = {
         email: giver.email,
         to_name: giver.name,
         assigned_name: assignedName,
         subject,
         message: body
-      });
+      };
+      if (state.settings.emailDebug) console.debug('EmailJS payload', payload);
+      await sendEmailJS(payload);
       if (items[i]) items[i].querySelector(".tag").textContent = "Inviata";
     } catch (e) {
       if (items[i]) items[i].querySelector(".tag").textContent = "Errore";
@@ -559,17 +567,45 @@ function buildMailto(to, subject, body) {
 const EMAILJS_CONFIG = {
   publicKey: "_oYxMjGpPeXYAcvvm",   // es: "pUBliC_xxx"
   serviceId: "secret_santa_tori",   // es: "service_abcd"
-  templateId: ""   // es: "template_xyz"
+  templateId: "template_8iouji3"   // es: "template_xyz"
 };
 
 function initEmailJSIfConfigured() {
+  // Initialize EmailJS if SDK present and config complete.
   if (!window.emailjs) return false;
   const { publicKey, serviceId, templateId } = EMAILJS_CONFIG;
-  if (!publicKey || !serviceId || !templateId) return false;
-  // EmailJS API expects the public key string (not an object)
-  // correct call: emailjs.init(publicKey)
-  emailjs.init(publicKey);
-  return true;
+  if (!publicKey || !serviceId || !templateId) {
+    console.warn("EmailJS config incomplete:", { publicKey: !!publicKey, serviceId: !!serviceId, templateId: !!templateId });
+    return false;
+  }
+  try {
+    // EmailJS expects the public key string
+    emailjs.init(publicKey);
+    return true;
+  } catch (err) {
+    console.error('emailjs.init error', err);
+    return false;
+  }
+}
+
+// Try to load EmailJS SDK dynamically if it's not present yet.
+function ensureEmailJSSDKLoaded() {
+  const src = "https://cdn.emailjs.com/sdk/3.2.0/email.min.js";
+  return new Promise(resolve => {
+    if (window.emailjs) return resolve(true);
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      existing.addEventListener('load', () => resolve(!!window.emailjs));
+      existing.addEventListener('error', () => resolve(false));
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = src;
+    s.async = true;
+    s.onload = () => resolve(!!window.emailjs);
+    s.onerror = () => resolve(false);
+    document.head.appendChild(s);
+  });
 }
 
 function sendEmailJS(params) {
