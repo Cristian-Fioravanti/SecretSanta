@@ -46,6 +46,7 @@ function loadState() {
     state.settings.emailTemplate ||= "Ciao {{nome}}, il tuo Secret Santa è {{assegnato}}. Buone feste!";
     state.settings.emailSubject ||= "🎅 Il tuo Secret Santa!";
     state.settings.seedMode ||= "secure";
+  state.settings.emailDebug ||= false;
   } catch {
     // se è corrotto: reset
     localStorage.removeItem(LS_KEY);
@@ -610,8 +611,16 @@ function ensureEmailJSSDKLoaded() {
 
 function sendEmailJS(params) {
   const { serviceId, templateId } = EMAILJS_CONFIG;
+  // validate config before sending to provide clearer errors
+  if (!serviceId || !templateId) {
+    return Promise.reject(new Error('EmailJS config missing serviceId or templateId'));
+  }
   // params deve matchare i campi del template EmailJS
-  return emailjs.send(serviceId, templateId, params);
+  try {
+    return emailjs.send(serviceId, templateId, params);
+  } catch (err) {
+    return Promise.reject(err);
+  }
 }
 
 // ----- UI / NAV / MODAL / TEMA -----
