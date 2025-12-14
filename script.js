@@ -640,19 +640,39 @@ function initEmailJSIfConfigured() {
 function ensureEmailJSSDKLoaded() {
   const src = "https://cdn.emailjs.com/sdk/3.2.0/email.min.js";
   return new Promise(resolve => {
-    if (window.emailjs) return resolve(true);
-    const existing = document.querySelector(`script[src="${src}"]`);
-    if (existing) {
-      existing.addEventListener('load', () => resolve(!!window.emailjs));
-      existing.addEventListener('error', () => resolve(false));
-      return;
+    try {
+      // if SDK already present, resolve immediately
+      if (window.emailjs) return resolve(true);
+
+      const existing = document.querySelector(`script[src="${src}"]`);
+      // helper to resolve once and clear timeout
+      let settled = false;
+      const done = (val) => { if (!settled) { settled = true; clearTimeout(timeout); resolve(val); } };
+
+      // safety timeout in case load/error never fire
+      const timeout = setTimeout(() => {
+        // final check of global
+        done(!!window.emailjs);
+      }, 4000);
+
+      if (existing) {
+        // if the existing script already loaded, window.emailjs would be truthy above.
+        existing.addEventListener('load', () => done(!!window.emailjs));
+        existing.addEventListener('error', () => done(false));
+        return;
+      }
+
+      const s = document.createElement('script');
+      s.src = src;
+      s.async = true;
+      s.onload = () => done(!!window.emailjs);
+      s.onerror = () => done(false);
+      document.head.appendChild(s);
+    } catch (err) {
+      console.error('ensureEmailJSSDKLoaded error', err);
+      // fallback: resolve false so caller can show proper error
+      resolve(false);
     }
-    const s = document.createElement('script');
-    s.src = src;
-    s.async = true;
-    s.onload = () => resolve(!!window.emailjs);
-    s.onerror = () => resolve(false);
-    document.head.appendChild(s);
   });
 }
 
