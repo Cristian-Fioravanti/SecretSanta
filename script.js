@@ -61,6 +61,38 @@ function toast(msg) {
   toast._t = setTimeout(() => el.classList.remove("show"), 2600);
 }
 
+// Visible error panel for environments where console isn't inspected.
+function showErrorDetails(title, detail) {
+  // create panel if missing
+  let panel = document.querySelector('#errorPanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'errorPanel';
+    panel.style.position = 'fixed';
+    panel.style.right = '12px';
+    panel.style.bottom = '12px';
+    panel.style.zIndex = 9999;
+    panel.style.maxWidth = '420px';
+    panel.style.maxHeight = '45vh';
+    panel.style.overflow = 'auto';
+    panel.style.background = 'rgba(0,0,0,0.85)';
+    panel.style.color = '#fff';
+    panel.style.padding = '12px';
+    panel.style.borderRadius = '8px';
+    panel.style.fontSize = '13px';
+    panel.style.boxShadow = '0 6px 18px rgba(0,0,0,0.4)';
+    panel.innerHTML = '<strong style="display:block;margin-bottom:6px">Errori invio EmailJS</strong><pre id="errorPanelPre" style="white-space:pre-wrap;word-break:break-word;margin:0;font-size:12px"></pre><div style="text-align:right;margin-top:8px"><button id="errorPanelClose" style="background:#fff;border:0;padding:6px 8px;border-radius:4px;cursor:pointer">Chiudi</button></div>';
+    document.body.appendChild(panel);
+    panel.querySelector('#errorPanelClose').addEventListener('click', () => panel.remove());
+  }
+  const pre = panel.querySelector('#errorPanelPre');
+  try {
+    pre.textContent = title + '\n' + (typeof detail === 'string' ? detail : JSON.stringify(detail, null, 2));
+  } catch (e) {
+    pre.textContent = title + '\n' + String(detail);
+  }
+}
+
 function setStep(n) {
   // step buttons
   $$("#stepBtn1, #stepBtn2, #stepBtn3").forEach(btn => btn.classList.remove("step--active"));
@@ -511,6 +543,7 @@ async function sendAll() {
   const sdkLoaded = await ensureEmailJSSDKLoaded();
   if (!sdkLoaded) {
     console.error('ensureEmailJSSDKLoaded returned false. window.emailjs =', window.emailjs);
+    showErrorDetails('EmailJS SDK non caricato', { window_emailjs: !!window.emailjs });
     toast("EmailJS SDK non caricato. Includi lo script SDK o controlla la connessione.");
     return;
   }
@@ -519,7 +552,8 @@ async function sendAll() {
   if (!emailjsOk) {
     // give more context in console and toast
     console.error('initEmailJSIfConfigured returned false. window.emailjs =', !!window.emailjs, 'EMAILJS_CONFIG =', EMAILJS_CONFIG);
-    toast("EmailJS non configurato (publicKey/serviceId/templateId mancanti o SDK non inizializzata). Controlla console per dettagli.");
+    showErrorDetails('EmailJS init fallita', { window_emailjs: !!window.emailjs, EMAILJS_CONFIG });
+    toast("EmailJS non configurato (publicKey/serviceId/templateId mancanti o SDK non inizializzata). Controlla il pannello errori.");
     return;
   }
 
