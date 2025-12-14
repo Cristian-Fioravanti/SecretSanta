@@ -510,12 +510,16 @@ async function sendAll() {
   // EmailJS: ensure SDK present (try dynamic load) and config initialized
   const sdkLoaded = await ensureEmailJSSDKLoaded();
   if (!sdkLoaded) {
+    console.error('ensureEmailJSSDKLoaded returned false. window.emailjs =', window.emailjs);
     toast("EmailJS SDK non caricato. Includi lo script SDK o controlla la connessione.");
     return;
   }
+  console.debug('After SDK load: window.emailjs =', !!window.emailjs, 'EMAILJS_CONFIG =', EMAILJS_CONFIG);
   const emailjsOk = initEmailJSIfConfigured();
   if (!emailjsOk) {
-    toast("EmailJS non configurato (publicKey/serviceId/templateId mancanti). Controlla EMAILJS_CONFIG.");
+    // give more context in console and toast
+    console.error('initEmailJSIfConfigured returned false. window.emailjs =', !!window.emailjs, 'EMAILJS_CONFIG =', EMAILJS_CONFIG);
+    toast("EmailJS non configurato (publicKey/serviceId/templateId mancanti o SDK non inizializzata). Controlla console per dettagli.");
     return;
   }
 
@@ -542,11 +546,15 @@ async function sendAll() {
         message: body
       };
       if (state.settings.emailDebug) console.debug('EmailJS payload', payload);
-      await sendEmailJS(payload);
+      const res = await sendEmailJS(payload);
+      // emailjs.send may return a Promise that resolves with response object
+      if (state.settings.emailDebug) console.debug('EmailJS send response', res);
       if (items[i]) items[i].querySelector(".tag").textContent = "Inviata";
     } catch (e) {
       if (items[i]) items[i].querySelector(".tag").textContent = "Errore";
-      console.error(e);
+      console.error('sendEmailJS error', e);
+      // show more useful toast for first error
+      if (i === 0) toast("Errore invio: vedi console per dettagli.");
     }
   }
 
@@ -573,7 +581,10 @@ const EMAILJS_CONFIG = {
 
 function initEmailJSIfConfigured() {
   // Initialize EmailJS if SDK present and config complete.
-  if (!window.emailjs) return false;
+  if (!window.emailjs) {
+    console.error('EmailJS SDK not found on window (window.emailjs is undefined)');
+    return false;
+  }
   const { publicKey, serviceId, templateId } = EMAILJS_CONFIG;
   if (!publicKey || !serviceId || !templateId) {
     console.warn("EmailJS config incomplete:", { publicKey: !!publicKey, serviceId: !!serviceId, templateId: !!templateId });
@@ -581,7 +592,9 @@ function initEmailJSIfConfigured() {
   }
   try {
     // EmailJS expects the public key string
+    console.debug('Calling emailjs.init with publicKey:', publicKey);
     emailjs.init(publicKey);
+    console.info('emailjs initialized');
     return true;
   } catch (err) {
     console.error('emailjs.init error', err);
@@ -795,6 +808,15 @@ function bindUI() {
     saveState();
   });
 
+  // email debug toggle in UI
+  const emailDebugToggle = $("#emailDebugToggle");
+  if (emailDebugToggle) {
+    emailDebugToggle.addEventListener('change', (e) => {
+      state.settings.emailDebug = e.target.checked;
+      saveState();
+    });
+  }
+
   $("#freezeParticipants").addEventListener("change", (e) => {
     state.settings.lockAfterDraw = e.target.checked;
     saveState();
@@ -876,6 +898,9 @@ function hydrateUIFromState() {
   $("#lockAfterDraw").checked = !!state.settings.lockAfterDraw;
   $("#seedMode").value = state.settings.seedMode || "secure";
   applyTheme();
+  // sync email debug toggle if present
+  const emailDebugToggle = $("#emailDebugToggle");
+  if (emailDebugToggle) emailDebugToggle.checked = !!state.settings.emailDebug;
 }
 
 (function init() {
