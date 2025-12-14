@@ -638,7 +638,7 @@ function initEmailJSIfConfigured() {
 
 // Try to load EmailJS SDK dynamically if it's not present yet.
 function ensureEmailJSSDKLoaded() {
-  const src = "https://cdn.emailjs.com/sdk/3.2.0/email.min.js";
+  const src = "https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js";
   return new Promise(resolve => {
     try {
       // if SDK already present, resolve immediately
